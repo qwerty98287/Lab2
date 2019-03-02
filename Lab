@@ -1,0 +1,143 @@
+#include <pch.h>
+#include <iostream>
+#include <set>
+#include <vector>
+#include <list>
+using namespace std;
+
+// Клетка доски
+struct Cell {
+	int row;
+	int col;
+};
+
+// Тип множество (std::set) требует определить операцию сравнения
+bool operator < (Cell c1, Cell c2) {
+	if (c1.row < c2.row)
+		return true;
+	else if (c1.row == c2.row)
+		return c1.col < c2.col;
+	return false;
+}
+
+/**
+ * Генерируем клетки, в которые может перейти конь,
+ *  как комбинации длинных (+2, -2) и коротких(+1, -1) шагов.
+ * Фильтруем клетки на вхождение в доску и на их непосещенность ранее.
+ */
+std::vector<Cell> genSuccessors(Cell pos, int nRows, const set<Cell>& visited) {
+	std::vector<Cell> result;
+	static int longSteps[] = { 2,-2 };
+	static int shortSteps[] = { 1, -1 };
+	for (int longStep : longSteps) {
+		for (int shortStep : shortSteps) {
+			Cell neighbors[] = { {pos.row + longStep, pos.col + shortStep},
+								{pos.row + shortStep, pos.col + longStep} };
+
+			for (Cell c : neighbors) {
+				if (c.row >= 0 && c.row < nRows
+					&& c.col >= 0 && c.col < nRows
+					&& !visited.count(c))
+					result.push_back(c);
+			}
+		}
+	}
+	return result;
+}
+
+/**
+ * Жадный алгоритм поиска пути (Правило Варнсдорфа)
+ * На каждом шаге из соседей клетки выбирается тот,
+ * из которого можно уйти в наименьшее число еще не посещенных клеток (но >0).
+ */
+vector<Cell> findSequenceGreedy(int nRows, Cell initPos) {
+	std::set<Cell> visitedCells = { initPos };
+	Cell currentPos = initPos;
+	vector<Cell> currentNeighbors = genSuccessors(currentPos, nRows, visitedCells);
+
+	vector<Cell> path{ initPos };
+
+	while (!currentNeighbors.empty()) {
+		int minNeighbors = -1;
+		vector<Cell> nextNeighbors;
+		Cell nextCell;
+
+		for (Cell n : currentNeighbors) {
+			vector<Cell> neighbors = genSuccessors(n, nRows, visitedCells);
+			if (minNeighbors == -1 || minNeighbors == 0 ||
+				(neighbors.size() != 0 && (int)neighbors.size() < minNeighbors)) {
+				nextNeighbors = neighbors;
+				nextCell = n;
+				minNeighbors = (int)neighbors.size();
+			}
+		}
+
+		currentPos = nextCell;
+		currentNeighbors = nextNeighbors;
+		path.push_back(nextCell);
+		visitedCells.insert(nextCell);
+	}
+
+	return path;
+}
+
+// Поиск полным перебором
+//bool findSequence(int nRows, std::set<Cell>& visitedCells,
+//                  Cell currentPos, list<Cell>& result) {
+//    visitedCells.insert(currentPos);
+//    if(visitedCells.size() == nRows * nRows) {
+//        return true;
+//    }
+//    vector<Cell> neighbors = genSuccessors(currentPos, nRows, visitedCells);
+//    for(Cell neighbor : neighbors) {
+//        if(visitedCells.count(neighbor) == 0) {
+//            if(findSequence(nRows, visitedCells, neighbor, result)) {
+//                result.push_front(neighbor);
+//                return true;
+//            }
+//        }
+//    }
+
+//    visitedCells.erase(currentPos);
+//    return false;
+//}
+
+// Проверка уникальности вершин в пути
+bool checkCorrectness(vector<Cell>& path) {
+	set<Cell> unique;
+	for (Cell c : path) {
+		if (unique.count(c))
+			return false;
+		unique.insert(c);
+	}
+	return true;
+}
+
+int main() {
+	int nRows;
+	cout << "N: " << endl;
+	cin >> nRows;
+
+	int startX, startY;
+	cout << "(X,Y): " << endl;
+	cin >> startX >> startY;
+
+	vector<Cell> path = findSequenceGreedy(nRows, { startX, startY });
+	cout << "Path size " << path.size() << endl;
+	if ((int)path.size() == nRows * nRows) {
+		for (Cell c : path)
+			cout << c.row << "-" << c.col << " ";
+		cout << endl;
+
+		bool correct = checkCorrectness(path);
+		cout << "Correct " << correct << endl;
+	}
+	else {
+		cout << "Cannot find any path, stuck at: " << endl;
+		for (Cell c : path)
+			cout << c.row << "-" << c.col << " ";
+		cout << endl;
+	}
+
+	return 0;
+}
